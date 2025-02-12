@@ -2,57 +2,30 @@ import CoreMotion
 import HealthKit
 import WatchKit
 
+protocol MovementServiceDelegate: AnyObject {
+    func didDetectShake()
+}
+
 class MovementService: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
         
     }
     
-    // MARK: - Motion Detection Properties
+    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: any Error) {
+    
+    }
+    
+    // MARK: - Properties
     private let motionManager = CMMotionManager()
     private let shakeThreshold = 2.5
     private var lastShakeTime: Date?
     private let minShakeInterval = 1.0 // Prevent duplicate detections
-    
-    // MARK: - Workout Session Properties
     private var workoutSession: HKWorkoutSession?
     private let healthStore = HKHealthStore()
-    private let workoutConfiguration = HKWorkoutConfiguration()
     
-    // MARK: - Init & Setup
-    override init() {
-        super.init()
-        workoutConfiguration.activityType = .other
-        setupHealthKit()
-    }
-    
-    private func setupHealthKit() {
-        let typesToShare: Set<HKSampleType> = [.workoutType()]
-        let typesToRead: Set<HKObjectType> = [.workoutType()]
-        
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
-            if !success {
-                print("HealthKit authorization failed: \(error?.localizedDescription ?? "")")
-            }
-        }
-    }
-    
-    // MARK: - Workout Control
-    func startWorkout() {
-        do {
-            workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: workoutConfiguration)
-            workoutSession?.delegate = self
-            workoutSession?.startActivity(with: Date())
-            startAccelerometerUpdates()
-        } catch {
-            print("Workout session failed: \(error.localizedDescription)")
-        }
-    }
-    
-    func stopWorkout() {
-        workoutSession?.end()
-        motionManager.stopAccelerometerUpdates()
-    }
-    
+    // MARK: - Delegate
+    weak var delegate: MovementServiceDelegate?
+
     // MARK: - Shake Detection
     private func startAccelerometerUpdates() {
         guard motionManager.isAccelerometerAvailable else {
@@ -68,7 +41,8 @@ class MovementService: NSObject, ObservableObject, HKWorkoutSessionDelegate {
             let magnitude = sqrt(
                 pow(acceleration.x, 2) +
                 pow(acceleration.y, 2) +
-                pow(acceleration.z, 2))
+                pow(acceleration.z, 2)
+            )
             
             if magnitude > self.shakeThreshold && self.isValidShakeTime() {
                 self.handleShakeDetection()
@@ -83,20 +57,29 @@ class MovementService: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     
     private func handleShakeDetection() {
         lastShakeTime = Date()
-        let timestamp = Date().timeIntervalSince1970
         
-        // Get watch identifier and send to API
-        let watchID = WKInterfaceDevice.current().identifierForVendor?.uuidString ?? "unknown_device"
+        // Notify delegate (UI) about the shake
+        delegate?.didDetectShake()
+        
+        // Send shake event to API
+        let timestamp = Date().timeIntervalSince1970
         ShakeAPINetworkManager.shared.sendShakeEvent(timestamp: timestamp)
-
     }
     
-    // MARK: - HKWorkoutSessionDelegate
-    func workoutSession(_ session: HKWorkoutSession, didFailWithError error: Error) {
-        print("Workout session error: \(error.localizedDescription)")
+    // MARK: - Workout Session
+    func startWorkout() {
+        do {
+            workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: HKWorkoutConfiguration())
+            workoutSession?.delegate = self
+            workoutSession?.startActivity(with: Date())
+            startAccelerometerUpdates()
+        } catch {
+            print("Workout session failed: \(error.localizedDescription)")
+        }
     }
     
-    func workoutSession(_ session: HKWorkoutSession, didGenerate event: HKWorkoutEvent) {
-        // Handle workout events if needed
+    func stopWorkout() {
+        workoutSession?.end()
+        motionManager.stopAccelerometerUpdates()
     }
 }

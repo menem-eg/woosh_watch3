@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct woosh_watch_Watch_AppApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
+    @WKApplicationDelegateAdaptor private var delegate: ExtensionDelegate
+        @StateObject private var movementService = MovementService()
+        
+        var body: some Scene {
+            WindowGroup {
+                ContentView()
+                    .environmentObject(movementService)
+            }
         }
-    }
 }
