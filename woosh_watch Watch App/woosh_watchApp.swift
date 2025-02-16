@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct woosh_watch_Watch_AppApp: App {
     @WKApplicationDelegateAdaptor private var delegate: ExtensionDelegate
-        @StateObject private var movementService = MovementService()
+        @StateObject private var movementService = MovementService()whatszoodddddddddddd§
         
         var body: some Scene {
             WindowGroup {
